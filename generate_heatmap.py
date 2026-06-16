@@ -44,6 +44,24 @@ def _column_key(col) -> str:
     return str(col).strip().lower().replace(" ", "").replace("_", "")
 
 
+def _detect_date_column(df: pd.DataFrame) -> str | None:
+    """Find a likely date column from common naming variants."""
+    for col in df.columns:
+        key = _column_key(col)
+        if key in (
+            "date",
+            "readingdate",
+            "recordeddate",
+            "surveydate",
+            "reportdate",
+            "entrydate",
+            "datestamp",
+            "timestamp",
+        ):
+            return col
+    return None
+
+
 def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Accept common column name variants from Excel exports."""
     rename = {}
@@ -77,6 +95,10 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
             rename[col] = "No. of Lights Connected"
     out = df.rename(columns=rename)
 
+    date_col = _detect_date_column(out)
+    if date_col and date_col != "Date":
+        out = out.rename(columns={date_col: "Date"})
+
     if "GPS" in out.columns and "Latitude" not in out.columns:
         parts = out["GPS"].astype(str).str.split(",", n=1, expand=True)
         out["Latitude"] = pd.to_numeric(parts[0].str.strip(), errors="coerce")
@@ -95,6 +117,9 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
         out["Latitude"] = pd.to_numeric(out["Latitude"], errors="coerce")
     if "Longitude" in out.columns:
         out["Longitude"] = pd.to_numeric(out["Longitude"], errors="coerce")
+    if "Date" in out.columns:
+        parsed = pd.to_datetime(out["Date"], errors="coerce", dayfirst=True)
+        out["Date"] = parsed.dt.strftime("%Y-%m-%d").where(parsed.notna(), "")
 
     for col in (
         "Connected Load",
@@ -161,12 +186,12 @@ def summary_rows(df: pd.DataFrame) -> str:
     return "".join(rows)
 
 
-def summary_html(df: pd.DataFrame) -> str:
+def summary_html(df: pd.DataFrame, panel_id: str = "to", title: str = "Burning status overview") -> str:
     total = len(df)
     return f"""
   <div style="font-family:Segoe UI,Arial,sans-serif;min-width:260px;">
-    <div style="font-size:15px;font-weight:700;margin-bottom:8px;color:#1a237e;">
-      Burning status overview
+    <div style="font-size:15px;font-weight:700;margin-bottom:8px;color:#1a237e;" id="summary-title-{panel_id}">
+      {title}
     </div>
     <table style="width:100%;font-size:13px;border-collapse:collapse;">
       <thead>
@@ -176,11 +201,11 @@ def summary_html(df: pd.DataFrame) -> str:
           <th style="text-align:right;">Share</th>
         </tr>
       </thead>
-      <tbody id="summary-body">{summary_rows(df)}</tbody>
+      <tbody id="summary-body-{panel_id}">{summary_rows(df)}</tbody>
       <tfoot>
         <tr style="border-top:1px solid #ddd;font-weight:700;">
           <td style="padding-top:6px;">Total</td>
-          <td id="summary-total" style="text-align:right;padding-top:6px;">{total}</td>
+          <td id="summary-total-{panel_id}" style="text-align:right;padding-top:6px;">{total}</td>
           <td style="text-align:right;padding-top:6px;">100%</td>
         </tr>
       </tfoot>
@@ -251,6 +276,11 @@ def points_payload(df: pd.DataFrame) -> list[dict]:
                 "ward": ward,
                 "wardKey": f"{zone}|{ward}",
                 "wardNum": ward_number(ward),
+                "pointKey": (
+                    str(row["CCMS ID"])
+                    if "CCMS ID" in row and pd.notna(row["CCMS ID"]) and str(row["CCMS ID"]).strip()
+                    else f"{zone}|{ward}|{float(row['Latitude']):.6f}|{float(row['Longitude']):.6f}"
+                ),
                 "region": str(row["Region"]) if "Region" in row and pd.notna(row["Region"]) else "",
                 "category": row["category"],
                 "burning": round(float(row["Burning%"]), 1),
@@ -258,6 +288,7 @@ def points_payload(df: pd.DataFrame) -> list[dict]:
                 "lat": float(row["Latitude"]),
                 "lng": float(row["Longitude"]),
                 "ccms": str(row["CCMS ID"]) if "CCMS ID" in row and pd.notna(row["CCMS ID"]) else "",
+                "date": str(row["Date"]) if "Date" in row and pd.notna(row["Date"]) else "",
                 "label": CATEGORY_LABELS[row["category"]],
                 "connectedLoad": _int_val("Connected Load"),
                 "recordedLoad": _int_val("Recorded Load"),
@@ -276,6 +307,7 @@ def filter_panel_html(df: pd.DataFrame) -> str:
         if "Region" in df.columns
         else []
     )
+    dates = sorted(d for d in df["Date"].dropna().astype(str).unique() if d.strip()) if "Date" in df.columns else []
 
     zone_opts = '<option value="ALL">All zones</option>' + "".join(
         f'<option value="{z}">{z}</option>' for z in zones
@@ -295,9 +327,26 @@ def filter_panel_html(df: pd.DataFrame) -> str:
         </select>
         """
 
+    date_block = ""
+    if dates:
+        date_opts = "".join(
+            f'<option value="{d}">{d}</option>' for d in dates
+        )
+        date_block = f"""
+        <label style="font-size:12px;color:#444;">From date</label>
+        <select id="filter-date-from" style="width:100%;margin:4px 0 10px;padding:6px;border:1px solid #ccc;border-radius:4px;">
+          {date_opts}
+        </select>
+        <label style="font-size:12px;color:#444;">To date</label>
+        <select id="filter-date-to" style="width:100%;margin:4px 0 10px;padding:6px;border:1px solid #ccc;border-radius:4px;">
+          {date_opts}
+        </select>
+        """
+
     return f"""
     <div style="font-family:Segoe UI,Arial,sans-serif;min-width:220px;">
       <div style="font-size:15px;font-weight:700;margin-bottom:10px;color:#1a237e;">Filters</div>
+      {date_block}
       {region_block}
       <label style="font-size:12px;color:#444;">Zone</label>
       <select id="filter-zone" style="width:100%;margin:4px 0 10px;padding:6px;border:1px solid #ccc;border-radius:4px;">
@@ -441,10 +490,12 @@ def filter_script(map_id: str, points: list[dict], ward_summaries: dict[str, dic
         return el ? el.checked : true;
       }}
 
-      function matchesFilters(point) {{
+      function matchesFilters(point, dateValue) {{
         const zone = selectedValue("filter-zone");
         const ward = selectedValue("filter-ward");
         const region = selectedValue("filter-region");
+        const date = dateValue || selectedValue("filter-date-to");
+        if (date && point.date !== date) return false;
         if (region !== "ALL" && point.region !== region) return false;
         if (zone !== "ALL" && point.zone !== zone) return false;
         if (ward !== "ALL" && point.ward !== ward) return false;
@@ -459,9 +510,11 @@ def filter_script(map_id: str, points: list[dict], ward_summaries: dict[str, dic
         if (!wardSelect) return;
         const zone = selectedValue("filter-zone");
         const region = selectedValue("filter-region");
+        const toDate = selectedValue("filter-date-to");
         const current = wardSelect.value;
         const wards = [...new Set(
           allPoints
+            .filter(p => (!toDate || p.date === toDate))
             .filter(p => (zone === "ALL" || p.zone === zone))
             .filter(p => (region === "ALL" || !p.region || p.region === region))
             .map(p => p.ward)
@@ -471,22 +524,34 @@ def filter_script(map_id: str, points: list[dict], ward_summaries: dict[str, dic
         if (wards.includes(current)) wardSelect.value = current;
       }}
 
-      function updateSummary(visible) {{
+      function updateSummaryPanel(visible, panelId, dateLabel) {{
         const total = visible.length;
         const counts = {{red: 0, yellow: 0, green: 0}};
         visible.forEach(p => counts[p.category] += 1);
         ["red", "yellow", "green"].forEach(cat => {{
-          const row = document.querySelector(`tr[data-summary-cat="${{cat}}"]`);
+          const row = document.querySelector(`#summary-body-${{panelId}} tr[data-summary-cat="${{cat}}"]`);
           if (!row) return;
           const n = counts[cat];
           const pct = total ? (n / total * 100) : 0;
           row.querySelector(".summary-count").textContent = n;
           row.querySelector(".summary-share").textContent = pct.toFixed(1) + "%";
         }});
-        const totalEl = document.getElementById("summary-total");
+        const totalEl = document.getElementById(`summary-total-${{panelId}}`);
         if (totalEl) totalEl.textContent = total;
+        const titleEl = document.getElementById(`summary-title-${{panelId}}`);
+        if (titleEl && dateLabel) {{
+          titleEl.textContent = `Burning status overview — ${{dateLabel}}`;
+        }}
+      }}
+
+      function updateSummaries(visibleTo) {{
+        const fromDate = selectedValue("filter-date-from");
+        const toDate = selectedValue("filter-date-to");
+        const fromVisible = allPoints.filter(p => matchesFilters(p, fromDate));
+        updateSummaryPanel(fromVisible, "from", fromDate);
+        updateSummaryPanel(visibleTo, "to", toDate);
         const countEl = document.getElementById("filter-count");
-        if (countEl) countEl.textContent = `Showing ${{total}} of ${{allPoints.length}} points`;
+        if (countEl) countEl.textContent = `Showing ${{visibleTo.length}} of ${{allPoints.length}} points`;
       }}
 
       function markerIcon(point) {{
@@ -510,14 +575,14 @@ def filter_script(map_id: str, points: list[dict], ward_summaries: dict[str, dic
 
       function renderMarkers() {{
         markersLayer.clearLayers();
-        const visible = allPoints.filter(matchesFilters);
+        const visible = allPoints.filter(p => matchesFilters(p, selectedValue("filter-date-to")));
         visible.forEach(pt => {{
           const marker = L.marker([pt.lat, pt.lng], {{ icon: markerIcon(pt) }});
           marker.bindPopup(() => buildDetailPopup(pt), {{ maxWidth: 340 }});
           marker.bindTooltip(`Ward ${{pt.wardNum}} · ${{pt.burning}}% · ${{pt.ccms || "light"}}`);
           marker.addTo(markersLayer);
         }});
-        updateSummary(visible);
+        updateSummaries(visible);
       }}
 
       function resetFilters() {{
@@ -529,16 +594,48 @@ def filter_script(map_id: str, points: list[dict], ward_summaries: dict[str, dic
           const el = document.getElementById(id);
           if (el) el.checked = true;
         }});
+        defaultDateValue();
         updateWardOptions();
         renderMarkers();
       }}
 
-      ["filter-zone", "filter-ward", "filter-region",
+      function defaultDateValue() {{
+        const fromEl = document.getElementById("filter-date-from");
+        const toEl = document.getElementById("filter-date-to");
+        if (!fromEl || !toEl) return;
+        const available = Array.from(toEl.options)
+          .map(opt => opt.value)
+          .filter(v => v);
+        if (!available.length) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const preferred = available.includes(today) ? today : available[available.length - 1];
+        toEl.value = preferred;
+        fromEl.value = available[0];
+      }}
+
+      function setupFilterPanelToggle() {{
+        const panel = document.getElementById("filter-panel");
+        const toggle = document.getElementById("filter-toggle");
+        if (!panel || !toggle) return;
+        toggle.addEventListener("click", () => {{
+          const hidden = panel.style.display === "none";
+          panel.style.display = hidden ? "block" : "none";
+          toggle.textContent = hidden ? "Hide filters" : "Filters";
+        }});
+      }}
+
+      ["filter-date-from", "filter-date-to", "filter-zone", "filter-ward", "filter-region",
        "filter-red", "filter-yellow", "filter-green"].forEach(id => {{
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener("change", () => {{
-          if (id === "filter-zone" || id === "filter-region") updateWardOptions();
+          const fromEl = document.getElementById("filter-date-from");
+          const toEl = document.getElementById("filter-date-to");
+          if (fromEl && toEl && fromEl.value > toEl.value) {{
+            if (id === "filter-date-from") toEl.value = fromEl.value;
+            else fromEl.value = toEl.value;
+          }}
+          if (id === "filter-date-to" || id === "filter-zone" || id === "filter-region") updateWardOptions();
           renderMarkers();
         }});
       }});
@@ -546,6 +643,8 @@ def filter_script(map_id: str, points: list[dict], ward_summaries: dict[str, dic
       const resetBtn = document.getElementById("filter-reset");
       if (resetBtn) resetBtn.addEventListener("click", resetFilters);
 
+        setupFilterPanelToggle();
+        defaultDateValue();
         updateWardOptions();
         renderMarkers();
       }}
@@ -611,10 +710,17 @@ def build_map(df: pd.DataFrame, title: str) -> folium.Map:
     map_id = m.get_name()
 
     filter_box = f"""
-    <div style="
-      position:fixed;top:80px;right:12px;z-index:9999;
+    <button id="filter-toggle" type="button" style="
+      position:fixed;top:80px;right:12px;z-index:10000;
+      background:#1a237e;color:#fff;border:none;border-radius:6px;
+      padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;
+      box-shadow:0 2px 10px rgba(0,0,0,0.25);">
+      Filters
+    </button>
+    <div id="filter-panel" style="
+      display:none;position:fixed;top:118px;right:12px;z-index:9999;
       background:rgba(255,255,255,0.97);padding:12px 14px;border-radius:8px;
-      box-shadow:0 2px 12px rgba(0,0,0,0.18);max-height:70vh;overflow:auto;">
+      box-shadow:0 2px 12px rgba(0,0,0,0.18);max-height:68vh;max-width:290px;overflow:auto;">
       {filter_panel_html(df)}
     </div>
     """
@@ -631,12 +737,22 @@ def build_map(df: pd.DataFrame, title: str) -> folium.Map:
     )
     legend.add_to(m)
 
+    summary_from_panel = f"""
+    <div style="
+      position:fixed;bottom:280px;left:12px;z-index:9999;
+      background:rgba(255,255,255,0.96);padding:12px 14px;border-radius:8px;
+      box-shadow:0 2px 12px rgba(0,0,0,0.18);">
+      {summary_html(df, panel_id="from", title="Burning status overview — From date")}
+    </div>
+    """
+    m.get_root().html.add_child(folium.Element(summary_from_panel))
+
     summary_panel = f"""
     <div style="
       position:fixed;bottom:24px;left:12px;z-index:9999;
       background:rgba(255,255,255,0.96);padding:12px 14px;border-radius:8px;
       box-shadow:0 2px 12px rgba(0,0,0,0.18);">
-      {summary_html(df)}
+      {summary_html(df, panel_id="to", title="Burning status overview — To date")}
     </div>
     """
     m.get_root().html.add_child(folium.Element(summary_panel))
