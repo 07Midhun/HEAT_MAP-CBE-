@@ -648,6 +648,27 @@ def build_map(df: pd.DataFrame, title: str) -> folium.Map:
     return m
 
 
+def generate_map(
+    input_path: Path | str,
+    output_path: Path | str,
+    title: str = "Coimbatore Burning Compliance Heat Map",
+) -> Path:
+    """Build the heat map HTML file and return the output path."""
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if input_path.suffix.lower() in (".xlsx", ".xls", ".csv"):
+        raw = load_dataset(input_path)
+    else:
+        raise ValueError("Input must be .xlsx, .xls, or .csv")
+
+    df = normalize_columns(raw)
+    m = build_map(df, title)
+    m.save(str(output_path))
+    return output_path.resolve()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate CBE Burning% heat map")
     parser.add_argument(
@@ -676,20 +697,13 @@ def main() -> None:
 
     input_path = Path(args.input)
     output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    if input_path.suffix.lower() in (".xlsx", ".xls", ".csv"):
-        raw = load_dataset(input_path)
-    else:
-        raise ValueError("Input must be .xlsx, .xls, or .csv")
-
-    df = normalize_columns(raw)
-    m = build_map(df, args.title)
-    m.save(str(output_path))
+    generate_map(input_path, output_path, args.title)
     output_file = output_path.resolve()
 
     if not args.no_open:
         webbrowser.open(output_file.as_uri())
+
+    df = normalize_columns(load_dataset(input_path))
 
     print(f"Opening map in your browser: {output_file}")
     print(f"Data points on map: {len(df)}")
