@@ -2,6 +2,8 @@
 
 Interactive heat map of street-light burning compliance for Coimbatore officials. Reads Excel data, plots each CCMS/light point on a Folium map, and serves it locally or on [Render](https://render.com) via Flask + Gunicorn.
 
+**Live map:** [https://heat-map-cbe-2.onrender.com](https://heat-map-cbe-2.onrender.com)
+
 **For higher officials:** see [IMPLEMENTATION_STEPS.md](IMPLEMENTATION_STEPS.md) — step-by-step briefing on what was built and how to use it in review meetings.
 
 ## Features
@@ -113,6 +115,8 @@ New zones and wards appear automatically in the filter panel when added to the s
    - **Build command:** `pip install -r requirements.txt`
    - **Start command:** `gunicorn app:app --bind 0.0.0.0:$PORT`
 4. Deploy. The map is served at your Render URL.
+
+**Production URL:** [https://heat-map-cbe-2.onrender.com](https://heat-map-cbe-2.onrender.com)
 
 You can also use the included `render.yaml` blueprint.
 
