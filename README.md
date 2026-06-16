@@ -20,8 +20,8 @@ Interactive heat map of street-light burning compliance for Coimbatore officials
 | Burning % | Status   | Color  |
 |-----------|----------|--------|
 | &lt; 50%  | Critical | Red    |
-| 50–90%    | Moderate | Yellow |
-| ≥ 91%     | Good     | Green  |
+| 50–90%    | Moderate | Green  |
+| ≥ 91%     | Good     | Yellow |
 
 ## Project structure
 

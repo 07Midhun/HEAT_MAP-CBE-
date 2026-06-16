@@ -61,8 +61,8 @@ Burning percentage is classified into three clear bands for decision-making:
 | Burning % | Status | Colour | Action level |
 |-----------|--------|--------|--------------|
 | Below 50% | Critical | Red | Immediate attention |
-| 50% – 90% | Moderate | Yellow | Monitoring / planned action |
-| 91% and above | Good | Green | Satisfactory compliance |
+| 50% – 90% | Moderate | Green | Monitoring / planned action |
+| 91% and above | Good | Yellow | Satisfactory compliance |
 
 This colour rule is applied **uniformly to every point** on the map and in all filters and summaries.
 

@@ -24,8 +24,8 @@ COLORS = {
 
 CATEGORY_LABELS = {
     "red": "Critical (< 50%)",
-    "yellow": "Moderate (51% – 90%)",
-    "green": "Good (≥ 91%)",
+    "green": "Moderate (51% – 90%)",
+    "yellow": "Good (≥ 91%)",
 }
 
 
@@ -36,8 +36,8 @@ def classify_burning(pct: float) -> str:
     if pct < 50:
         return "red"
     if pct <= 90:
-        return "yellow"
-    return "green"
+        return "green"
+    return "yellow"
 
 
 def _column_key(col) -> str:
@@ -361,10 +361,10 @@ def filter_panel_html(df: pd.DataFrame) -> str:
         <input type="checkbox" id="filter-red" checked> Critical (&lt; 50%)
       </label>
       <label style="display:block;font-size:12px;margin:4px 0;">
-        <input type="checkbox" id="filter-yellow" checked> Moderate (51% – 90%)
+        <input type="checkbox" id="filter-green" checked> Moderate (51% – 90%)
       </label>
       <label style="display:block;font-size:12px;margin:4px 0;">
-        <input type="checkbox" id="filter-green" checked> Good (≥ 91%)
+        <input type="checkbox" id="filter-yellow" checked> Good (≥ 91%)
       </label>
       <button id="filter-reset" type="button"
         style="margin-top:10px;width:100%;padding:7px;border:none;border-radius:4px;
@@ -401,11 +401,11 @@ def filter_script(map_id: str, points: list[dict], ward_summaries: dict[str, dic
       }}
 
       function statusBadgeFrom(category, color, label) {{
-        const icons = {{red: "✕", yellow: "!", green: "✓"}};
+        const icons = {{red: "✕", green: "!", yellow: "✓"}};
         const text = {{
           red: "Critical",
-          yellow: "Moderate",
-          green: "Good"
+          green: "Moderate",
+          yellow: "Good"
         }}[category] || label;
         return `<span style="display:inline-flex;align-items:center;gap:5px;
           background:${{color}};color:#fff;padding:3px 10px;border-radius:999px;
@@ -728,7 +728,7 @@ def build_map(df: pd.DataFrame, title: str) -> folium.Map:
     m.get_root().script.add_child(folium.Element(filter_script(map_id, points, ward_summaries)))
 
     legend = cm.StepColormap(
-        colors=[COLORS["red"], COLORS["yellow"], COLORS["green"]],
+        colors=[COLORS["red"], COLORS["green"], COLORS["yellow"]],
         index=[0, 50, 91, 100],
         vmin=0,
         vmax=100,
