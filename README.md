@@ -4,7 +4,7 @@ Interactive heat map of street-light burning compliance for Coimbatore officials
 
 **Live map:** [https://heat-map-cbe-2.onrender.com](https://heat-map-cbe-2.onrender.com)
 
-**For higher officials:** see [IMPLEMENTATION_STEPS.md](IMPLEMENTATION_STEPS.md) — step-by-step briefing on what was built and how to use it in review meetings.
+**For further clarification :** see [IMPLEMENTATION_STEPS.md](IMPLEMENTATION_STEPS.md) — step-by-step briefing on what was built and how to use it in review meetings.
 
 ## Features
 

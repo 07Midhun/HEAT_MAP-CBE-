@@ -3,6 +3,8 @@
 
 **Document purpose:** This note explains how the heat map system was built, what it shows, and how it can be used in review meetings and field follow-up.
 
+**Live map (deployed):** [https://heat-map-cbe-2.onrender.com](https://heat-map-cbe-2.onrender.com)
+
 ---
 
 ## 1. Objective
@@ -120,7 +122,7 @@ The map is not a static image. It is an **interactive dashboard** suitable for p
 |------|-----|----------|
 | Local file | Double-click `run.bat` | Development and offline demo on one PC |
 | Local web server | `run_server.bat` | Testing before going live |
-| Cloud (Render) | Shared web link | Officials, meetings, remote review |
+| Cloud (Render) | [heat-map-cbe-2.onrender.com](https://heat-map-cbe-2.onrender.com) | Officials, meetings, remote review |
 
 ---
 
@@ -146,7 +148,7 @@ Save as interactive HTML  →  Serve on web (Render)
 
 **Recommended flow (5–10 minutes)**
 
-1. **Open the map** — browser link (Render) or local `run.bat` output.  
+1. **Open the map** — [https://heat-map-cbe-2.onrender.com](https://heat-map-cbe-2.onrender.com) (or local `run.bat` output for offline demo).  
 2. **Show full city view** — explain colour meaning using the legend.  
 3. **Filter to one zone or ward** — e.g. CJB-S, Ward 76.  
 4. **Point out red / yellow clusters** — areas needing action.  
