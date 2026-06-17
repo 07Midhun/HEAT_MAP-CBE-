@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import webbrowser
 from pathlib import Path
 
@@ -27,6 +28,9 @@ CATEGORY_LABELS = {
     "green": "Moderate (51% – 90%)",
     "yellow": "Good (≥ 91%)",
 }
+
+DEFAULT_MAP_TITLE = "COIMBATORE CORPORATION CORE AREA - HEAT MAP"
+DEFAULT_MAP_SUBTITLE = "Street-light burning, non burning status"
 
 
 def classify_burning(pct: float) -> str:
@@ -297,6 +301,96 @@ def points_payload(df: pd.DataFrame) -> list[dict]:
             }
         )
     return records
+
+
+def _haversine_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    radius = 6_371_000
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return 2 * radius * math.asin(math.sqrt(a))
+
+
+def region_circles_payload(df: pd.DataFrame) -> dict[str, dict]:
+    """Bounding circle per region for map highlight when filtered."""
+    if "Region" not in df.columns:
+        return {}
+    return _circles_for_column(df, "Region")
+
+
+def zone_circles_payload(df: pd.DataFrame) -> dict[str, dict]:
+    """Bounding circle per zone (e.g. CJB-N) for map highlight when filtered."""
+    return _circles_for_column(df, "Zone")
+
+
+def _circles_for_column(df: pd.DataFrame, column: str) -> dict[str, dict]:
+    circles: dict[str, dict] = {}
+    for name, group in df.groupby(column):
+        label = str(name).strip()
+        if not label:
+            continue
+        lats = group["Latitude"].astype(float)
+        lngs = group["Longitude"].astype(float)
+        center_lat = float(lats.mean())
+        center_lng = float(lngs.mean())
+        max_dist = 0.0
+        for lat, lng in zip(lats, lngs):
+            max_dist = max(max_dist, _haversine_meters(center_lat, center_lng, float(lat), float(lng)))
+        circles[label] = {
+            "center": [center_lat, center_lng],
+            "radiusMeters": max(max_dist * 1.1 + 400, 800),
+        }
+    return circles
+
+
+ZONE_REGION_NAMES = {
+    "CJB-N": "North",
+    "CJB-S": "South",
+    "CJB-C": "Central",
+    "CJB-E": "East",
+    "CJB-W": "West",
+}
+
+
+def region_areas_payload(df: pd.DataFrame) -> list[dict]:
+    """Map zones to named regions with bounding circles for the React map."""
+    zones = zone_circles_payload(df)
+    areas: list[dict] = []
+    for zone_id in sorted(zones):
+        circle = zones[zone_id]
+        label = ZONE_REGION_NAMES.get(zone_id, zone_id.rsplit("-", 1)[-1])
+        areas.append(
+            {
+                "id": zone_id,
+                "label": label,
+                "fullLabel": f"{label} ({zone_id})",
+                "center": circle["center"],
+                "radiusMeters": circle["radiusMeters"],
+            }
+        )
+    return areas
+
+
+def build_api_payload(
+    df: pd.DataFrame,
+    title: str = DEFAULT_MAP_TITLE,
+    subtitle: str = DEFAULT_MAP_SUBTITLE,
+) -> dict:
+    """JSON payload for the React frontend."""
+    dates = sorted(d for d in df["Date"].dropna().astype(str).unique() if d.strip()) if "Date" in df.columns else []
+    zones = sorted(df["Zone"].dropna().astype(str).unique())
+    return {
+        "title": title,
+        "subtitle": subtitle,
+        "points": points_payload(df),
+        "dates": dates,
+        "zones": zones,
+        "regionAreas": region_areas_payload(df),
+        "colors": COLORS,
+        "categoryLabels": CATEGORY_LABELS,
+        "center": [float(df["Latitude"].mean()), float(df["Longitude"].mean())],
+    }
 
 
 def filter_panel_html(df: pd.DataFrame) -> str:
@@ -671,12 +765,12 @@ def build_map(df: pd.DataFrame, title: str) -> folium.Map:
     title_html = f"""
     <div style="
       position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;
-      background:rgba(255,255,255,0.95);padding:10px 22px;border-radius:8px;
+      background:rgba(255,255,255,0.95);padding:10px 22px 12px;border-radius:8px;
       box-shadow:0 2px 12px rgba(0,0,0,0.18);font-family:Segoe UI,Arial,sans-serif;
-      border-left:5px solid #1a237e;">
+      border-top:4px solid #1a237e;text-align:center;">
       <div style="font-size:18px;font-weight:700;color:#1a237e;">{title}</div>
-      <div style="font-size:12px;color:#555;margin-top:2px;">
-        Street-light burning compliance · Coimbatore Municipal Corporation
+      <div style="font-size:12px;color:#555;margin-top:4px;text-align:center;">
+        {DEFAULT_MAP_SUBTITLE}
       </div>
     </div>
     """
@@ -767,7 +861,7 @@ def build_map(df: pd.DataFrame, title: str) -> folium.Map:
 def generate_map(
     input_path: Path | str,
     output_path: Path | str,
-    title: str = "Coimbatore Burning Compliance Heat Map",
+    title: str = DEFAULT_MAP_TITLE,
 ) -> Path:
     """Build the heat map HTML file and return the output path."""
     input_path = Path(input_path)
@@ -801,7 +895,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--title",
-        default="Coimbatore Burning Compliance Heat Map",
+        default=DEFAULT_MAP_TITLE,
         help="Map title for presentation",
     )
     parser.add_argument(
