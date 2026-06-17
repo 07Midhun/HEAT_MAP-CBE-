@@ -24,9 +24,9 @@ COLORS = {
 }
 
 CATEGORY_LABELS = {
-    "red": "Critical (< 50%)",
-    "green": "Moderate (51% – 90%)",
-    "yellow": "Good (≥ 91%)",
+    "red": "Critical (<= 50%)",
+    "green": "Moderate (51% – 99%)",
+    "yellow": "Good (100%)",
 }
 
 DEFAULT_MAP_TITLE = "COIMBATORE CORPORATION CORE AREA - HEAT MAP"
@@ -37,11 +37,11 @@ def classify_burning(pct: float) -> str:
     """Map Burning% to red / yellow / green per official thresholds."""
     if pd.isna(pct):
         return "red"
-    if pct < 50:
-        return "red"
-    if pct <= 90:
+    if pct >= 100:
+        return "yellow"
+    if pct >= 51:
         return "green"
-    return "yellow"
+    return "red"
 
 
 def _column_key(col) -> str:
@@ -452,13 +452,13 @@ def filter_panel_html(df: pd.DataFrame) -> str:
       </select>
       <label style="font-size:12px;color:#444;display:block;margin-bottom:6px;">Status</label>
       <label style="display:block;font-size:12px;margin:4px 0;">
-        <input type="checkbox" id="filter-red" checked> Critical (&lt; 50%)
+        <input type="checkbox" id="filter-red" checked> Critical (<= 50%)
       </label>
       <label style="display:block;font-size:12px;margin:4px 0;">
-        <input type="checkbox" id="filter-green" checked> Moderate (51% – 90%)
+        <input type="checkbox" id="filter-green" checked> Moderate (51% – 99%)
       </label>
       <label style="display:block;font-size:12px;margin:4px 0;">
-        <input type="checkbox" id="filter-yellow" checked> Good (≥ 91%)
+        <input type="checkbox" id="filter-yellow" checked> Good (100%)
       </label>
       <button id="filter-reset" type="button"
         style="margin-top:10px;width:100%;padding:7px;border:none;border-radius:4px;
@@ -827,11 +827,11 @@ def build_map(
 
     legend = cm.StepColormap(
         colors=[COLORS["red"], COLORS["green"], COLORS["yellow"]],
-        index=[0, 50, 91, 100],
+        index=[0, 51, 100],
         vmin=0,
         vmax=100,
         caption="Burning % compliance",
-        tick_labels=["0", "50", "91", "100"],
+        tick_labels=["0", "51", "100"],
     )
     legend.add_to(m)
 
