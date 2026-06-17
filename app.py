@@ -8,23 +8,23 @@ BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, Response, jsonify
 
 from generate_heatmap import (
     DEFAULT_MAP_SUBTITLE,
     DEFAULT_MAP_TITLE,
-    build_api_payload,
     load_dataset,
     normalize_columns,
+    render_map_html,
 )
 
 DATA_PATH = BASE_DIR / "data" / "cbe_burning_data.xlsx"
-FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 MAP_TITLE = os.environ.get("MAP_TITLE", DEFAULT_MAP_TITLE)
 MAP_SUBTITLE = os.environ.get("MAP_SUBTITLE", DEFAULT_MAP_SUBTITLE)
 
-app = Flask(__name__, static_folder=None)
+app = Flask(__name__)
 _df_cache = None
+_html_cache = None
 
 
 def get_dataframe():
@@ -37,40 +37,34 @@ def get_dataframe():
 
 
 def reload_dataframe():
-    global _df_cache
+    global _df_cache, _html_cache
     _df_cache = normalize_columns(load_dataset(DATA_PATH))
+    _html_cache = None
     return _df_cache
 
 
-@app.route("/api/map-data")
-def map_data():
-    df = get_dataframe()
-    return jsonify(build_api_payload(df, MAP_TITLE, MAP_SUBTITLE))
+def get_map_html() -> str:
+    global _html_cache
+    if _html_cache is None:
+        df = get_dataframe()
+        _html_cache = render_map_html(df, MAP_TITLE, MAP_SUBTITLE)
+    return _html_cache
+
+
+@app.route("/")
+def index():
+    return Response(get_map_html(), mimetype="text/html; charset=utf-8")
 
 
 @app.route("/api/health")
 def health():
-    return jsonify({"status": "ok", "frontend": FRONTEND_DIST.is_dir()})
+    return jsonify({"status": "ok", "mode": "html"})
 
 
 @app.route("/api/refresh", methods=["POST"])
 def refresh():
     reload_dataframe()
     return jsonify({"status": "refreshed"})
-
-
-@app.route("/", defaults={"path": ""})
-@app.route("/<path:path>")
-def serve_frontend(path: str):
-    if not FRONTEND_DIST.is_dir():
-        return (
-            "React frontend not built. Run: cd frontend && npm install && npm run build",
-            503,
-        )
-    asset = FRONTEND_DIST / path
-    if path and asset.is_file():
-        return send_from_directory(FRONTEND_DIST, path)
-    return send_from_directory(FRONTEND_DIST, "index.html")
 
 
 if __name__ == "__main__":

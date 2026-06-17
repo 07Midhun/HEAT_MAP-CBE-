@@ -748,7 +748,11 @@ def filter_script(map_id: str, points: list[dict], ward_summaries: dict[str, dic
     """
 
 
-def build_map(df: pd.DataFrame, title: str) -> folium.Map:
+def build_map(
+    df: pd.DataFrame,
+    title: str,
+    subtitle: str = DEFAULT_MAP_SUBTITLE,
+) -> folium.Map:
     center_lat = df["Latitude"].mean()
     center_lon = df["Longitude"].mean()
 
@@ -770,7 +774,7 @@ def build_map(df: pd.DataFrame, title: str) -> folium.Map:
       border-top:4px solid #1a237e;text-align:center;">
       <div style="font-size:18px;font-weight:700;color:#1a237e;">{title}</div>
       <div style="font-size:12px;color:#555;margin-top:4px;text-align:center;">
-        {DEFAULT_MAP_SUBTITLE}
+        {subtitle}
       </div>
     </div>
     """
@@ -858,10 +862,21 @@ def build_map(df: pd.DataFrame, title: str) -> folium.Map:
     return m
 
 
+def render_map_html(
+    df: pd.DataFrame,
+    title: str = DEFAULT_MAP_TITLE,
+    subtitle: str = DEFAULT_MAP_SUBTITLE,
+) -> str:
+    """Return a complete standalone HTML document for the heat map."""
+    m = build_map(df, title, subtitle)
+    return m.get_root().render()
+
+
 def generate_map(
     input_path: Path | str,
     output_path: Path | str,
     title: str = DEFAULT_MAP_TITLE,
+    subtitle: str = DEFAULT_MAP_SUBTITLE,
 ) -> Path:
     """Build the heat map HTML file and return the output path."""
     input_path = Path(input_path)
@@ -874,8 +889,8 @@ def generate_map(
         raise ValueError("Input must be .xlsx, .xls, or .csv")
 
     df = normalize_columns(raw)
-    m = build_map(df, title)
-    m.save(str(output_path))
+    html = render_map_html(df, title, subtitle)
+    output_path.write_text(html, encoding="utf-8")
     return output_path.resolve()
 
 
