@@ -8,12 +8,13 @@ Interactive heat map of street-light burning compliance for Coimbatore officials
 
 ## Features
 
+- **React** frontend with interactive Leaflet map (`frontend/`)
 - Color-coded markers by burning percentage (red / yellow / green)
 - Ward number shown inside each marker bubble
-- Live filters: Region, Zone, Ward, and status checkboxes
-- Summary table updates with active filters
+- Live filters: From/To date, Region, Zone, Ward, and status checkboxes
+- **Region radius circle** when a region is selected (e.g. North)
+- Dual summary panels: From date (top) and To date (bottom)
 - Click popup with per-point CCMS details (load, lights, burning %)
-- Fullscreen, minimap, and layer controls
 
 ## Color rules
 
@@ -29,15 +30,18 @@ Interactive heat map of street-light burning compliance for Coimbatore officials
 HEAT_MAP(CBE)/
 ├── data/
 │   └── cbe_burning_data.xlsx   # Source data (Sheet2)
+├── frontend/                   # React app (Vite + react-leaflet)
+│   └── dist/                   # Built static files (after npm run build)
 ├── output/
-│   └── cbe_burning_heatmap.html
-├── app.py                      # Flask web app (Render / local server)
-├── generate_heatmap.py         # Map generator
+│   └── cbe_burning_heatmap.html  # Legacy Folium HTML (optional)
+├── app.py                      # Flask API + serves React build
+├── generate_heatmap.py         # Data processing + legacy HTML generator
 ├── requirements.txt
 ├── render.yaml                   # Render deployment blueprint
-├── run.bat                       # Generate map + open in browser
-├── run_server.bat                # Start local web server (Windows)
-└── open_map.bat                  # Open existing HTML only
+├── build_frontend.bat            # Build React for production
+├── run.bat                       # Generate legacy HTML map
+├── run_server.bat                # Build React + start Flask server
+└── open_map.bat                  # Open legacy HTML only
 ```
 
 ## Setup
@@ -74,15 +78,31 @@ Optional arguments:
 
 Double-click **`open_map.bat`**.
 
-### Run web server (preview deployment)
+### Run web app (React)
 
-Double-click **`run_server.bat`**, or:
+Build the frontend once, then start Flask:
 
 ```powershell
-.\venv\Scripts\python.exe app.py
+.\build_frontend.bat
+.\run_server.bat
 ```
 
-Open **http://127.0.0.1:5000** in your browser.
+Open **http://127.0.0.1:5000**
+
+For frontend development with hot reload:
+
+```powershell
+# Terminal 1
+.\venv\Scripts\python.exe app.py
+
+# Terminal 2
+cd frontend
+npm run dev
+```
+
+Open **http://127.0.0.1:5173** (proxies `/api` to Flask).
+
+### Generate legacy HTML map only
 
 | Endpoint        | Description              |
 |-----------------|--------------------------|
@@ -112,9 +132,9 @@ New zones and wards appear automatically in the filter panel when added to the s
 1. Push this repo to GitHub (include `data/cbe_burning_data.xlsx`).
 2. On Render: **New → Web Service** → connect the repo.
 3. Settings:
-   - **Build command:** `pip install -r requirements.txt`
+   - **Build command:** `pip install -r requirements.txt && cd frontend && npm install && npm run build`
    - **Start command:** `gunicorn app:app --bind 0.0.0.0:$PORT`
-4. Deploy. The map is served at your Render URL.
+4. Deploy. The React app is served at your Render URL.
 
 **Production URL:** [https://heat-map-cbe-2.onrender.com](https://heat-map-cbe-2.onrender.com)
 
